@@ -45,7 +45,7 @@ spec:
       serviceAccountName: customers-service
       containers:
       - name: customers-service
-        image: ${PULL_IMAGE_REGISTRY}/petclinic-customers-service:latest
+        image: testrhhh/petclinic-customers:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -72,11 +72,11 @@ spec:
             memory: 1Gi
         env:
         - name: SPRING_DATASOURCE_URL
-          value: jdbc:mysql://customers-db-mysql.default.svc.cluster.local:3306/service_instance_db
+          value: jdbc:mysql://customers-db-mysql.databases.svc.cluster.local:3306/service_instance_db
         - name: SPRING_DATASOURCE_USERNAME
           value: root
         - name: SPRING_DATASOURCE_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: customers-db-mysql
-              key: mysql-root-password
+              name: customers-db-secret
+              key: MYSQL_ROOT_PASSWORD

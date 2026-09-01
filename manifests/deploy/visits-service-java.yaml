@@ -1,0 +1,134 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: visits-service
+  labels:
+    account: visits-service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: visits-service
+  labels:
+    app: visits-service
+spec:
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: visits-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: visits-v1
+  labels:
+    app: visits-service
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: visits-service
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: visits-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: visits-service
+      
+      # Init container to download OpenTelemetry Java agent
+      initContainers:
+      - name: otel-agent-download
+        image: busybox:latest
+        command:
+        - wget
+        - "-O"
+        - "/otel-javaagent/opentelemetry-javaagent.jar"
+        - "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar"
+        volumeMounts:
+        - name: otel-javaagent
+          mountPath: /otel-javaagent
+      
+      containers:
+      - name: visits-service
+        image: testrhhh/petclinic-visits:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        
+        # OpenTelemetry environment variables for tracing
+        env:
+        # Java agent configuration
+        - name: JAVA_TOOL_OPTIONS
+          value: "-javaagent:/otel-javaagent/opentelemetry-javaagent.jar"
+        
+        # OpenTelemetry core configuration
+        - name: OTEL_SERVICE_NAME
+          value: "visits-service"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://jaeger-collector.istio-system.svc.cluster.local:4318"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "none"
+        - name: OTEL_LOGS_EXPORTER
+          value: "none"
+        
+        # Enable JDBC instrumentation for database spans
+        - name: OTEL_INSTRUMENTATION_JDBC_ENABLED
+          value: "true"
+        
+        # Your existing configuration
+        - name: DELAY_MILLIS
+          value: "0"
+        
+        # Database configuration
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://visits-db-mysql.databases.svc.cluster.local:3306/service_instance_db
+        - name: SPRING_DATASOURCE_USERNAME
+          value: root
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: visits-db-secret
+              key: MYSQL_ROOT_PASSWORD
+        
+        # Volume mount for the Java agent
+        volumeMounts:
+        - name: otel-javaagent
+          mountPath: /otel-javaagent
+        
+        livenessProbe:
+          httpGet:
+            port: 8080
+            path: /actuator/health/liveness
+          initialDelaySeconds: 90
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /actuator/health/readiness
+          initialDelaySeconds: 15
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "sleep 10"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            memory: 1Gi
+      
+      # Volume to share the Java agent between initContainer and main container
+      volumes:
+      - name: otel-javaagent
+        emptyDir: {}

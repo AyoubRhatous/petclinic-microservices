@@ -45,7 +45,7 @@ spec:
       serviceAccountName: petclinic-frontend
       containers:
       - name: petclinic-frontend
-        image: ${PULL_IMAGE_REGISTRY}/petclinic-frontend:latest
+        image: testrhhh/petclinic-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

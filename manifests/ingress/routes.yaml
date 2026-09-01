@@ -5,7 +5,7 @@ metadata:
   name: petclinic-routes
 spec:
   hosts:
-  - "*"
+  - "myapp.devsecops-lab.xyz"
   gateways:
   - main-gateway
   http:
