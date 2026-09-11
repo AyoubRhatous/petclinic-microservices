@@ -1,4 +1,4 @@
-### Use a lightweight Java runtime
+#### Use a lightweight Java runtime
 FROM amazoncorretto:21-alpine
 
 # Set working directory
